@@ -1,90 +1,78 @@
 #!/usr/bin/env python3
-"""
-Calculate heavy-atom RMSD between a docked pose and a reference ligand structure.
+"""Heavy-atom RMSD between docked pose and reference ligand."""
 
-Useful for redocking validation (success usually defined as RMSD < 2.0 Å).
-
-Supports:
-- Reference: PDB / SDF / MOL2
-- Docked: Vina multi-model PDBQT or single pose SDF/PDBQT
-"""
+from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+
 import numpy as np
-from rdkit import Chem
-from rdkit.Chem import AllChem, rdMolAlign
 
 
 def load_mol(path: Path, remove_hs=True):
-    """Load a molecule from common formats."""
+    from rdkit import Chem
+
     path = Path(path)
     suffix = path.suffix.lower()
 
-    if suffix in [".sdf", ".sd", ".mol"]:
-        mol = Chem.SDMolSupplier(str(path), removeHs=False)[0]
-    elif suffix in [".pdb", ".ent"]:
+    if suffix in {".sdf", ".sd", ".mol"}:
+        suppl = Chem.SDMolSupplier(str(path), removeHs=False)
+        mol = next((m for m in suppl if m is not None), None)
+    elif suffix in {".pdb", ".ent"}:
         mol = Chem.MolFromPDBFile(str(path), removeHs=False)
     elif suffix == ".pdbqt":
-        # RDKit does not natively read PDBQT well; convert via OpenBabel first or strip
-        # For simplicity we try PDB-like parsing after removing charges/torsions comments
         with open(path) as f:
             lines = [l for l in f if l.startswith(("ATOM", "HETATM"))]
         temp_pdb = path.with_suffix(".tmp.pdb")
         with open(temp_pdb, "w") as out:
             out.writelines(lines)
+            out.write("END\n")
         mol = Chem.MolFromPDBFile(str(temp_pdb), removeHs=False)
         temp_pdb.unlink(missing_ok=True)
-    elif suffix in [".mol2"]:
+    elif suffix == ".mol2":
         mol = Chem.MolFromMol2File(str(path), removeHs=False)
     else:
         raise ValueError(f"Unsupported format: {suffix}")
 
     if mol is None:
         raise ValueError(f"Could not parse molecule from {path}")
-
     if remove_hs:
         mol = Chem.RemoveHs(mol)
     return mol
 
 
 def calc_rmsd(ref_mol, dock_mol):
-    """Calculate minimum RMSD after optimal alignment (heavy atoms)."""
-    # Ensure same number of heavy atoms
+    from rdkit import Chem
+    from rdkit.Chem import rdMolAlign
+
     ref_heavy = Chem.RemoveHs(ref_mol)
     dock_heavy = Chem.RemoveHs(dock_mol)
-
-    if ref_heavy.GetNumAtoms() != dock_heavy.GetNumAtoms():
-        print(f"[!] Warning: atom count mismatch (ref={ref_heavy.GetNumAtoms()}, "
-              f"dock={dock_heavy.GetNumAtoms()}). Trying best-effort match.")
-
-    # Use RDKit's alignment
     try:
-        rmsd = rdMolAlign.GetBestRMS(dock_heavy, ref_heavy)
+        return float(rdMolAlign.GetBestRMS(dock_heavy, ref_heavy))
     except Exception:
-        # Fallback: simple coordinate RMSD without atom mapping (less accurate)
         conf_ref = ref_heavy.GetConformer()
         conf_dock = dock_heavy.GetConformer()
-        coords_ref = np.array([list(conf_ref.GetAtomPosition(i)) for i in range(ref_heavy.GetNumAtoms())])
-        coords_dock = np.array([list(conf_dock.GetAtomPosition(i)) for i in range(min(dock_heavy.GetNumAtoms(), ref_heavy.GetNumAtoms()))])
-        diff = coords_ref[:len(coords_dock)] - coords_dock
-        rmsd = np.sqrt((diff**2).sum(axis=1).mean())
-
-    return rmsd
+        n = min(ref_heavy.GetNumAtoms(), dock_heavy.GetNumAtoms())
+        coords_ref = np.array([list(conf_ref.GetAtomPosition(i)) for i in range(n)])
+        coords_dock = np.array([list(conf_dock.GetAtomPosition(i)) for i in range(n)])
+        diff = coords_ref - coords_dock
+        return float(np.sqrt((diff**2).sum(axis=1).mean()))
 
 
 def extract_vina_models(pdbqt_path: Path):
-    """Split a multi-model Vina PDBQT into individual temporary molecules."""
     models = []
     current_lines = []
     model_num = 0
-
     with open(pdbqt_path) as f:
         for line in f:
             if line.startswith("MODEL"):
                 if current_lines:
                     models.append((model_num, current_lines))
-                model_num = int(line.split()[1])
+                try:
+                    model_num = int(line.split()[1])
+                except (IndexError, ValueError):
+                    model_num += 1
                 current_lines = []
             elif line.startswith("ENDMDL"):
                 if current_lines:
@@ -92,59 +80,68 @@ def extract_vina_models(pdbqt_path: Path):
                 current_lines = []
             elif line.startswith(("ATOM", "HETATM")):
                 current_lines.append(line)
-
+    if current_lines:
+        models.append((model_num or 1, current_lines))
     return models
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Calculate RMSD for redocking validation")
-    parser.add_argument("--ref", required=True, help="Reference ligand structure (PDB/SDF/MOL2)")
-    parser.add_argument("--docked", required=True, help="Docked pose(s) – Vina PDBQT or single SDF/PDB")
-    parser.add_argument("--out", default=None, help="Optional CSV output")
-    args = parser.parse_args()
+    parser.add_argument("--ref", required=True)
+    parser.add_argument("--docked", required=True)
+    parser.add_argument("--out", default=None)
+    args = parser.parse_args(argv)
 
-    ref_mol = load_mol(Path(args.ref))
-    docked_path = Path(args.docked)
+    try:
+        ref_path = Path(args.ref)
+        docked_path = Path(args.docked)
+        if not ref_path.exists():
+            raise FileNotFoundError(f"ref not found: {ref_path}")
+        if not docked_path.exists():
+            raise FileNotFoundError(f"docked not found: {docked_path}")
 
-    results = []
+        ref_mol = load_mol(ref_path)
+        results = []
 
-    if docked_path.suffix.lower() == ".pdbqt" and "MODEL" in docked_path.read_text()[:2000]:
-        # Multi-model Vina output
-        models = extract_vina_models(docked_path)
-        print(f"Found {len(models)} poses in Vina output\n")
-        print(f"{'Model':>6}  {'RMSD (Å)':>10}")
-        print("-" * 20)
-
-        for model_num, lines in models:
-            temp = docked_path.parent / f"_temp_model_{model_num}.pdb"
-            with open(temp, "w") as f:
-                f.writelines(lines)
-            try:
-                dock_mol = load_mol(temp)
-                rmsd = calc_rmsd(ref_mol, dock_mol)
-                results.append({"model": model_num, "rmsd": rmsd})
-                flag = "  <-- success" if rmsd < 2.0 else ""
-                print(f"{model_num:6d}  {rmsd:10.3f}{flag}")
-            except Exception as e:
-                print(f"{model_num:6d}  failed: {e}")
-            finally:
-                temp.unlink(missing_ok=True)
-    else:
-        # Single pose
-        dock_mol = load_mol(docked_path)
-        rmsd = calc_rmsd(ref_mol, dock_mol)
-        results.append({"model": 1, "rmsd": rmsd})
-        print(f"RMSD = {rmsd:.3f} Å")
-        if rmsd < 2.0:
-            print("Success (RMSD < 2.0 Å)")
+        text_head = docked_path.read_text(errors="ignore")[:4000]
+        if docked_path.suffix.lower() == ".pdbqt" and "MODEL" in text_head:
+            models = extract_vina_models(docked_path)
+            print(f"Found {len(models)} poses\n")
+            print(f"{'Model':>6}  {'RMSD (A)':>10}")
+            print("-" * 20)
+            for model_num, lines in models:
+                temp = docked_path.parent / f"_temp_model_{model_num}.pdb"
+                with open(temp, "w") as f:
+                    f.writelines(lines)
+                    f.write("END\n")
+                try:
+                    dock_mol = load_mol(temp)
+                    rmsd = calc_rmsd(ref_mol, dock_mol)
+                    results.append({"model": model_num, "rmsd": rmsd})
+                    flag = "  <-- success" if rmsd < 2.0 else ""
+                    print(f"{model_num:6d}  {rmsd:10.3f}{flag}")
+                except Exception as e:
+                    print(f"{model_num:6d}  failed: {e}")
+                finally:
+                    temp.unlink(missing_ok=True)
         else:
-            print("RMSD >= 2.0 Å – pose may need inspection")
+            dock_mol = load_mol(docked_path)
+            rmsd = calc_rmsd(ref_mol, dock_mol)
+            results.append({"model": 1, "rmsd": rmsd})
+            print(f"RMSD = {rmsd:.3f} A")
 
-    if args.out and results:
-        import pandas as pd
-        pd.DataFrame(results).to_csv(args.out, index=False)
-        print(f"\nResults written to {args.out}")
+        if args.out and results:
+            import pandas as pd
+
+            out = Path(args.out)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame(results).to_csv(out, index=False)
+            print(f"\nResults written to {out}")
+        return 0
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

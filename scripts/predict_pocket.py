@@ -1,48 +1,60 @@
 #!/usr/bin/env python3
-"""
-Run P2Rank to predict ligand binding pockets and generate a Vina config file.
+"""P2Rank pocket prediction → Vina box config."""
 
-Requires `prank` (P2Rank) to be installed and in PATH.
-See: https://github.com/rdk/p2rank
-"""
+from __future__ import annotations
 
 import argparse
 import csv
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
 def run_p2rank(pdb_file: Path, out_dir: Path):
+    if shutil.which("prank") is None:
+        raise RuntimeError(
+            "prank (P2Rank) not on PATH. Install P2Rank or set the docking box manually."
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "prank", "predict",
-        "-f", str(pdb_file),
-        "-o", str(out_dir),
-        "-visualizations", "0"   # disable heavy visualizations for speed
+        "prank",
+        "predict",
+        "-f",
+        str(pdb_file),
+        "-o",
+        str(out_dir),
+        "-visualizations",
+        "0",
     ]
     print("[*] Running P2Rank...")
-    subprocess.run(cmd, check=True)
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"P2Rank failed: {(r.stderr or r.stdout or '')[:500]}")
     print("[+] P2Rank finished")
 
 
-def parse_top_pocket(predictions_csv: Path):
-    """Read the top-ranked pocket center from P2Rank *_predictions.csv"""
+def parse_top_pocket(predictions_csv: Path, rank: int = 1):
     with open(predictions_csv) as f:
         reader = csv.DictReader(f)
-        rows = list(reader)
-
+        # strip spaces from headers
+        rows = []
+        for row in reader:
+            rows.append({(k or "").strip(): (v or "").strip() for k, v in row.items()})
     if not rows:
         raise RuntimeError("No pockets predicted")
+    idx = max(0, min(rank - 1, len(rows) - 1))
+    top = rows[idx]
 
-    top = rows[0]  # already ranked by score
-    center = (
-        float(top["center_x"]),
-        float(top["center_y"]),
-        float(top["center_z"])
-    )
-    score = float(top.get("score", top.get("probability", 0)))
-    print(f"[+] Top pocket score/probability: {score:.3f}")
-    print(f"    Center: {center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f}")
+    def getf(*keys):
+        for k in keys:
+            for rk, rv in top.items():
+                if rk.lower() == k.lower():
+                    return float(rv)
+        raise KeyError(keys)
+
+    center = (getf("center_x"), getf("center_y"), getf("center_z"))
+    print(f"[+] Pocket rank {idx+1} center: {center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f}")
     return center
 
 
@@ -64,39 +76,35 @@ energy_range = 3
     print(f"[+] Vina config written to {config_path}")
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="P2Rank pocket prediction → Vina box")
-    parser.add_argument("--receptor", required=True, help="Input protein PDB")
-    parser.add_argument("--out", default="results/pockets", help="Output directory")
-    parser.add_argument("--top", type=int, default=1, help="Which ranked pocket to use (1 = best)")
-    parser.add_argument("--size", type=float, default=22.0, help="Box size in Å (cubic)")
+    parser.add_argument("--receptor", required=True)
+    parser.add_argument("--out", default="results/pockets")
+    parser.add_argument("--top", type=int, default=1)
+    parser.add_argument("--size", type=float, default=22.0)
     parser.add_argument("--exhaustiveness", type=int, default=32)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    receptor = Path(args.receptor)
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Run P2Rank
-    run_p2rank(receptor, out_dir)
-
-    # Find the predictions file
-    pred_files = list(out_dir.glob("*_predictions.csv"))
-    if not pred_files:
-        # Sometimes P2Rank puts them in a subdirectory
-        pred_files = list(out_dir.rglob("*_predictions.csv"))
-    if not pred_files:
-        raise FileNotFoundError("Could not find P2Rank *_predictions.csv")
-
-    pred_csv = pred_files[0]
-    center = parse_top_pocket(pred_csv)
-
-    config_path = out_dir / "vina_config_from_p2rank.txt"
-    write_vina_config(center, args.size, config_path, args.exhaustiveness)
-
-    print("\nNext step:")
-    print(f"  python scripts/run_docking.py --receptor {receptor} --ligand ... --config {config_path}")
+    try:
+        receptor = Path(args.receptor)
+        if not receptor.exists():
+            raise FileNotFoundError(f"receptor not found: {receptor}")
+        out_dir = Path(args.out)
+        run_p2rank(receptor, out_dir)
+        pred_files = list(out_dir.glob("*_predictions.csv")) or list(
+            out_dir.rglob("*_predictions.csv")
+        )
+        if not pred_files:
+            raise FileNotFoundError("Could not find P2Rank *_predictions.csv")
+        center = parse_top_pocket(pred_files[0], args.top)
+        config_path = out_dir / "vina_config_from_p2rank.txt"
+        write_vina_config(center, args.size, config_path, args.exhaustiveness)
+        print(f"\nNext: python scripts/run_docking.py --receptor {receptor} --ligand ... --config {config_path}")
+        return 0
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
