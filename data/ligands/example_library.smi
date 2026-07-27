@@ -1,0 +1,9 @@
+# Small example multi-ligand library for batch screening tests
+# Format: SMILES  name
+
+NC(=N)C1=CC=CC=C1                  benzamidine
+CCOC(=O)C1=C(C)NC(C)=C(C(=O)OCC)C1C2=CC=CC=C2Cl   nifedipine_like
+CC(=O)Oc1ccccc1C(=O)O              aspirin
+CN1C=NC2=C1C(=O)N(C(=O)N2C)C       caffeine
+CC(C)Cc1ccc(cc1)C(C)C(=O)O         ibuprofen
+C1=CC=C(C=C1)C(=O)O                benzoic_acid

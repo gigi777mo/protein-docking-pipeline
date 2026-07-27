@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  syntax-and-imports:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install minimal dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install rdkit-pypi biopython pandas numpy
+
+    - name: Check Python syntax
+      run: |
+        python -m py_compile scripts/*.py
+        echo "All scripts have valid syntax"
+
+    - name: Test imports
+      run: |
+        cd scripts
+        python -c "
+        import prepare_receptor
+        import prepare_ligand
+        import analyze_results
+        import utils
+        import calculate_rmsd
+        print('All core modules imported successfully')
+        "
+
+    - name: Check example library can be read
+      run: |
+        python -c "
+        from pathlib import Path
+        lines = Path('data/ligands/example_library.smi').read_text().strip().splitlines()
+        ligands = [l for l in lines if l and not l.startswith('#')]
+        print(f'Example library contains {len(ligands)} ligands')
+        assert len(ligands) >= 5
+        "
+
+  # Note: Full end-to-end docking tests require AutoDock Vina + OpenBabel,
+  # which are not installed on the default GitHub runner.
+  # Users should run local tests after installing the full environment.

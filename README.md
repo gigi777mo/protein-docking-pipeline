@@ -4,7 +4,7 @@
 
 Core engine: **AutoDock Vina 1.2+**  
 Preparation: OpenBabel + RDKit + Biopython  
-Extras: P2Rank pocket detection • Batch virtual screening • DiffDock (deep learning) option • Redocking validation example
+Extras: P2Rank pocket detection • Batch virtual screening • DiffDock option • RMSD validation • Example library • GitHub Actions CI
 
 ---
 
@@ -14,8 +14,11 @@ Extras: P2Rank pocket detection • Batch virtual screening • DiffDock (deep l
 - Automatic binding site prediction with **P2Rank**
 - Single-ligand and **batch virtual screening** modes
 - Pose ranking + CSV summary
-- Optional **DiffDock** path for state-of-the-art deep learning docking
+- **RMSD calculation** for redocking validation
+- Optional **DiffDock** path for deep-learning docking
 - Ready-to-run **redocking example** (trypsin + benzamidine)
+- Small example multi-ligand library
+- Basic GitHub Actions CI (syntax + import checks)
 
 ---
 
@@ -25,29 +28,22 @@ Extras: P2Rank pocket detection • Batch virtual screening • DiffDock (deep l
 git clone https://github.com/gigi777mo/protein-docking-pipeline.git
 cd protein-docking-pipeline
 
-# Recommended
 conda env create -f environment.yml
 conda activate docking
 
-# You still need AutoDock Vina in PATH
-# Download from: https://github.com/ccsb-scripps/AutoDock-Vina/releases
-# or: conda install -c conda-forge vina
+# AutoDock Vina must be in PATH
+# https://github.com/ccsb-scripps/AutoDock-Vina/releases
 ```
 
-**Optional but recommended extras:**
-
-```bash
-# P2Rank (pocket prediction)
-# Download from https://github.com/rdk/p2rank/releases and add `prank` to PATH
-
-# DiffDock (deep learning docking)
-# Follow instructions at https://github.com/gcorso/DiffDock
-```
+Optional:
+- P2Rank → https://github.com/rdk/p2rank
+- DiffDock → https://github.com/gcorso/DiffDock
 
 ---
 
-## Quick Start (Single Ligand)
+## Quick Start
 
+### Single ligand
 ```bash
 python scripts/run_docking.py \
   --receptor data/receptors/your_protein.pdb \
@@ -56,139 +52,110 @@ python scripts/run_docking.py \
   --out results/my_run
 ```
 
----
-
-## 1. Automatic Pocket Detection (P2Rank)
-
-If you do not know the binding site:
-
+### Automatic pocket detection (P2Rank)
 ```bash
-# Predict pockets
-python scripts/predict_pocket.py \
-  --receptor data/receptors/your_protein.pdb \
-  --out results/pockets \
-  --top 1          # use the top-scoring pocket
-
-# This generates a ready-to-use Vina config file with center + size
+python scripts/predict_pocket.py --receptor protein.pdb --out results/pockets
 ```
 
-The script runs `prank predict`, reads the top pocket center from `*_predictions.csv`, and writes a Vina-compatible config (default box size 22 Å, adjustable).
-
----
-
-## 2. Batch Virtual Screening
-
-Dock many ligands against one receptor:
-
+### Batch virtual screening
 ```bash
 python scripts/batch_screen.py \
-  --receptor data/receptors/your_protein.pdb \
-  --ligands data/ligands/library.sdf   # or .smi (one SMILES per line)
+  --receptor protein.pdb \
+  --ligands data/ligands/example_library.smi \
   --config data/configs/example_config.txt \
-  --out results/vs_run \
-  --exhaustiveness 16
+  --out results/vs_run
 ```
 
-Outputs:
-- Individual docked poses
-- `summary.csv` ranked by best affinity
-- Easy to filter top hits for further analysis
+### Calculate RMSD (redocking validation)
+```bash
+python scripts/calculate_rmsd.py \
+  --ref reference_ligand.pdb \
+  --docked results/docked.pdbqt
+```
+A top pose with **RMSD < 2.0 Å** is generally considered a successful redocking.
 
----
-
-## 3. DiffDock Option (Deep Learning)
-
-For higher accuracy on many targets (especially when the binding site is unknown or the protein is flexible):
-
-1. Install DiffDock following the official repo: https://github.com/gcorso/DiffDock
-2. Use the provided helper:
-
+### DiffDock (deep learning)
 ```bash
 python scripts/run_diffdock.py \
-  --protein data/receptors/your_protein.pdb \
-  --ligand "CCO..." \          # SMILES or path to SDF
-  --out results/diffdock_run
+  --protein protein.pdb \
+  --ligand "SMILES_OR_FILE" \
+  --out results/diffdock_run \
+  --diffdock-dir /path/to/DiffDock
 ```
-
-The script is a thin wrapper that calls DiffDock inference and reorganizes the output for easy comparison with Vina results. DiffDock often outperforms classical docking on pose prediction benchmarks.
 
 ---
 
-## 4. Redocking Validation Example (Trypsin + Benzamidine)
+## Example Multi-Ligand Library
 
-Classic, well-behaved system for testing your installation.
+`data/ligands/example_library.smi` contains 6 simple drug-like molecules (benzamidine, aspirin, caffeine, ibuprofen, etc.) ready for testing the batch screening script.
 
-**Ligand SMILES (benzamidine):**
-```
-NC(=N)C1=CC=CC=C1
-```
+---
 
-**Recommended steps:**
+## Redocking Validation Example
+
+Classic system: **trypsin + benzamidine**
 
 ```bash
-# 1. Download the structure (3PTB is the classic entry)
-# From RCSB: https://www.rcsb.org/structure/3PTB
-# Or use:
+# Download structure
 mkdir -p data/receptors
 wget -O data/receptors/3PTB.pdb https://files.rcsb.org/download/3PTB.pdb
 
-# 2. Extract / prepare the known ligand (or use the SMILES above)
-# 3. Calculate box from the co-crystal ligand or use P2Rank
-python scripts/utils.py --get-box --ligand path/to/benzamidine_from_pdb.pdb --padding 6
+# Use the provided SMILES
+# data/ligands/benzamidine.smi
 
-# 4. Run docking and check if top pose has RMSD < 2.0 Å to crystal
+# After docking, check RMSD of the poses against the crystal ligand
+python scripts/calculate_rmsd.py --ref crystal_benzamidine.pdb --docked results/docked.pdbqt
 ```
-
-A successful redocking (RMSD of top pose < 2.0 Å) confirms your environment and parameters are working correctly.
 
 ---
 
 ## Directory Layout
 
 ```
-protein-docking-pipeline/
-├── scripts/
-│   ├── prepare_receptor.py
-│   ├── prepare_ligand.py
-│   ├── run_docking.py
-│   ├── batch_screen.py          # NEW
-│   ├── predict_pocket.py         # NEW (P2Rank)
-│   ├── run_diffdock.py           # NEW (wrapper)
-│   ├── analyze_results.py
-│   └── utils.py
-├── data/
-│   ├── receptors/
-│   ├── ligands/
-│   │   ├── example_ligand.smi
-│   │   └── benzamidine.smi        # NEW
-│   └── configs/
-├── results/
-└── ...
+scripts/
+  prepare_receptor.py
+  prepare_ligand.py
+  run_docking.py
+  batch_screen.py
+  predict_pocket.py
+  run_diffdock.py
+  analyze_results.py
+  calculate_rmsd.py      # NEW
+  utils.py
+
+data/ligands/
+  example_library.smi    # NEW – small test library
+  benzamidine.smi
+  example_ligand.smi
 ```
 
 ---
 
-## Tips for Best Results
+## Continuous Integration
 
-- Always redock a known ligand first to validate the setup.
-- Use higher `exhaustiveness` (32–64) for final pose prediction; lower (8–16) for large virtual screens.
-- Protonation state of the ligand is critical — the pipeline defaults to pH 7.4.
-- For flexible receptors, consider induced-fit docking or DiffDock.
-- After docking, inspect top poses in PyMOL / ChimeraX and calculate interaction fingerprints if needed (PLIP is excellent).
+A basic GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
+- Syntax checking of all Python scripts
+- Import tests for core modules
+- Verification that the example library is readable
+
+Full end-to-end docking tests require Vina + OpenBabel and are left for local runs.
+
+---
+
+## Tips
+
+- Always validate with a known redocking case first.
+- Use higher exhaustiveness (32–64) for final poses; lower (8–16) for large screens.
+- Protonation at pH 7.4 is the default — adjust if your ligand has unusual pKa.
+- After docking, inspect poses visually and consider interaction analysis (PLIP is excellent).
 
 ---
 
 ## Citation
 
-**AutoDock Vina**
-> Eberhardt J et al. J Chem Inf Model. 2021.  
-> Trott O, Olson AJ. J Comput Chem. 2010.
-
-**P2Rank**
-> Krivák R, Hoksza D. J Cheminform. 2018.
-
-**DiffDock**
-> Corso G et al. ICLR 2023 / DiffDock-L updates.
+**AutoDock Vina** — Eberhardt et al. (2021), Trott & Olson (2010)  
+**P2Rank** — Krivák & Hoksza (2018)  
+**DiffDock** — Corso et al. (2023)
 
 ---
 
