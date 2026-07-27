@@ -1,0 +1,19 @@
+# AutoDock Vina configuration file example
+# Replace the center and size with values appropriate for your binding site
+
+receptor = prepared/receptor.pdbqt
+ligand = prepared/ligand.pdbqt
+out = results/docked.pdbqt
+log = results/vina.log
+
+center_x = 0.0
+center_y = 0.0
+center_z = 0.0
+
+size_x = 20
+size_y = 20
+size_z = 20
+
+exhaustiveness = 32
+num_modes = 20
+energy_range = 3

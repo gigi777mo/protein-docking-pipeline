@@ -1,0 +1,6 @@
+rdkit-pypi
+biopython
+pandas
+numpy
+# Note: OpenBabel and AutoDock Vina must be installed system-wide or via conda
+# vina Python package is optional
