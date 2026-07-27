@@ -1,173 +1,28 @@
 # Protein-Ligand Docking Pipeline
 
-**Small-molecule (ligand) docking to proteins** — clean, modular, and reproducible.
+---
 
-Core engine: **AutoDock Vina 1.2+**  
-Preparation: OpenBabel + RDKit + Biopython  
-Extras: P2Rank pocket detection • Batch virtual screening • DiffDock option • RMSD validation • Example library • GitHub Actions CI
-
-Full citations: **[docs/CITATIONS.md](docs/CITATIONS.md)**
+> ## 🔴 USE MINICONDA
+>
+> **Install [Miniconda](https://docs.conda.io/en/latest/miniconda.html) first.**  
+> `conda env create -f environment.yml` → `conda activate docking`  
+> Also install **AutoDock Vina** on your PATH.
 
 ---
 
-## Features
+**New user?** Open **[START_HERE.md](START_HERE.md)**.
 
-- Receptor & ligand preparation (PDB → PDBQT, SMILES/SDF → PDBQT)
-- Automatic binding site prediction with **P2Rank**
-- Single-ligand and **batch virtual screening** modes
-- Pose ranking + CSV summary
-- **RMSD calculation** for redocking validation
-- Optional **DiffDock** path for deep-learning docking
-- Ready-to-run **redocking example** (trypsin + benzamidine)
-- Small example multi-ligand library
-- Basic GitHub Actions CI (syntax + import checks)
-- **Detailed scoring function documentation**
-
----
-
-## Installation
+Small-molecule docking to proteins (AutoDock Vina + optional P2Rank / DiffDock).
 
 ```bash
-git clone https://github.com/gigi777mo/protein-docking-pipeline.git
-cd protein-docking-pipeline
-
 conda env create -f environment.yml
 conda activate docking
-
-# AutoDock Vina must be in PATH
-# https://github.com/ccsb-scripps/AutoDock-Vina/releases
+# vina must be on PATH
+python scripts/run_docking.py --receptor protein.pdb --ligand ligand.smi --config data/configs/example_config.txt --out results/run1
 ```
 
-Optional:
-- P2Rank → https://github.com/rdk/p2rank
-- DiffDock → https://github.com/gcorso/DiffDock
-
----
-
-## Quick Start
-
-### Single ligand
-```bash
-python scripts/run_docking.py \
-  --receptor data/receptors/your_protein.pdb \
-  --ligand data/ligands/your_ligand.smi \
-  --config data/configs/example_config.txt \
-  --out results/my_run
-```
-
-### Automatic pocket detection (P2Rank)
-```bash
-python scripts/predict_pocket.py --receptor protein.pdb --out results/pockets
-```
-
-### Batch virtual screening
-```bash
-python scripts/batch_screen.py \
-  --receptor protein.pdb \
-  --ligands data/ligands/example_library.smi \
-  --config data/configs/example_config.txt \
-  --out results/vs_run
-```
-
-### Calculate RMSD (redocking validation)
-```bash
-python scripts/calculate_rmsd.py \
-  --ref reference_ligand.pdb \
-  --docked results/docked.pdbqt
-```
-A top pose with **RMSD < 2.0 Å** is generally considered a successful redocking.
-
-### DiffDock (deep learning)
-```bash
-python scripts/run_diffdock.py \
-  --protein protein.pdb \
-  --ligand "SMILES_OR_FILE" \
-  --out results/diffdock_run \
-  --diffdock-dir /path/to/DiffDock
-```
-
----
-
-## Scoring Function (AutoDock Vina)
-
-Vina uses an **empirical scoring function** (kcal/mol) of the form:
-
-```
-ΔG = gauss1 + gauss2 + repulsion + hydrophobic + hydrogen + torsional
-```
-
-| Term | Role |
-|------|------|
-| gauss1 / gauss2 | Attractive steric contacts |
-| repulsion | Clash penalty |
-| hydrophobic | Non-polar contacts |
-| hydrogen | Directional H-bonds |
-| torsional | Entropy penalty for rotatable bonds |
-
-**More negative = better predicted affinity.**  
-Scores are best used for **relative ranking**, not as absolute free energies.
-
-→ Full details: **[docs/scoring_function.md](docs/scoring_function.md)**
-
----
-
-## Example Multi-Ligand Library
-
-`data/ligands/example_library.smi` contains 6 simple drug-like molecules (benzamidine, aspirin, caffeine, ibuprofen, etc.) ready for testing the batch screening script.
-
----
-
-## Redocking Validation Example
-
-Classic system: **trypsin + benzamidine**
-
-```bash
-mkdir -p data/receptors
-wget -O data/receptors/3PTB.pdb https://files.rcsb.org/download/3PTB.pdb
-# data/ligands/benzamidine.smi
-python scripts/calculate_rmsd.py --ref crystal_benzamidine.pdb --docked results/docked.pdbqt
-```
-
----
-
-## Directory Layout
-
-```
-scripts/
-  prepare_receptor.py, prepare_ligand.py, run_docking.py,
-  batch_screen.py, predict_pocket.py, run_diffdock.py,
-  analyze_results.py, calculate_rmsd.py, utils.py
-
-docs/
-  scoring_function.md
-  CITATIONS.md
-```
-
----
-
-## Continuous Integration
-
-GitHub Actions (`.github/workflows/ci.yml`) runs syntax checks and import tests on push/PR.
-
----
-
-## Tips
-
-- Validate with a known redocking case first.
-- Use higher exhaustiveness (32–64) for final poses; lower (8–16) for large screens.
-- Treat Vina scores as relative ranks, not absolute ΔG values.
-
----
-
-## Citation
-
-See **[docs/CITATIONS.md](docs/CITATIONS.md)** for full references. Key papers:
-
-- **AutoDock Vina** — Trott & Olson, J Comput Chem 2010; Eberhardt et al., JCIM 2021  
-- **P2Rank** — Krivák & Hoksza, J Cheminform 2018  
-- **DiffDock** — Corso et al., ICLR 2023  
-
----
+Citations: [docs/CITATIONS.md](docs/CITATIONS.md)  
+Pip notes: [INSTALL_PIP.md](INSTALL_PIP.md)
 
 ## License
 
