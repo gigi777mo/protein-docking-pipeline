@@ -1,0 +1,22 @@
+# Intermediate and result files
+prepared/
+results/
+*.clean.pdb
+*.tmp.sdf
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
