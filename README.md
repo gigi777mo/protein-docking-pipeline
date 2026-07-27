@@ -19,6 +19,7 @@ Extras: P2Rank pocket detection • Batch virtual screening • DiffDock option 
 - Ready-to-run **redocking example** (trypsin + benzamidine)
 - Small example multi-ligand library
 - Basic GitHub Actions CI (syntax + import checks)
+- **Detailed scoring function documentation**
 
 ---
 
@@ -85,6 +86,30 @@ python scripts/run_diffdock.py \
 
 ---
 
+## Scoring Function (AutoDock Vina)
+
+Vina uses an **empirical scoring function** (kcal/mol) of the form:
+
+```
+ΔG = gauss1 + gauss2 + repulsion + hydrophobic + hydrogen + torsional
+```
+
+| Term | Role |
+|------|------|
+| gauss1 / gauss2 | Attractive steric contacts |
+| repulsion | Clash penalty |
+| hydrophobic | Non-polar contacts |
+| hydrogen | Directional H-bonds |
+| torsional | Entropy penalty for rotatable bonds |
+
+**More negative = better predicted affinity.**  
+Scores are best used for **relative ranking**, not as absolute free energies.
+
+→ Full details, interpretation guidelines, and comparison with other methods:  
+**[docs/scoring_function.md](docs/scoring_function.md)**
+
+---
+
 ## Example Multi-Ligand Library
 
 `data/ligands/example_library.smi` contains 6 simple drug-like molecules (benzamidine, aspirin, caffeine, ibuprofen, etc.) ready for testing the batch screening script.
@@ -120,11 +145,14 @@ scripts/
   predict_pocket.py
   run_diffdock.py
   analyze_results.py
-  calculate_rmsd.py      # NEW
+  calculate_rmsd.py
   utils.py
 
+docs/
+  scoring_function.md    # Detailed scoring function explanation
+
 data/ligands/
-  example_library.smi    # NEW – small test library
+  example_library.smi
   benzamidine.smi
   example_ligand.smi
 ```
@@ -148,6 +176,7 @@ Full end-to-end docking tests require Vina + OpenBabel and are left for local ru
 - Use higher exhaustiveness (32–64) for final poses; lower (8–16) for large screens.
 - Protonation at pH 7.4 is the default — adjust if your ligand has unusual pKa.
 - After docking, inspect poses visually and consider interaction analysis (PLIP is excellent).
+- Treat Vina scores as relative ranks, not absolute ΔG values.
 
 ---
 
