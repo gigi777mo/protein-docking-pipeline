@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "protein-docking-pipeline"
+version = "1.0.0"
+description = "Small-molecule protein docking pipeline (AutoDock Vina + helpers)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "biopython>=1.81",
+]
+
+[project.optional-dependencies]
+rdkit = ["rdkit-pypi>=2022.9.5"]
