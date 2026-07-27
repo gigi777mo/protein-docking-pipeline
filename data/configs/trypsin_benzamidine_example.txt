@@ -1,0 +1,15 @@
+# Example config for trypsin + benzamidine redocking (approximate)
+# You should recalculate the exact center from the co-crystal ligand
+# using scripts/utils.py --get-box
+
+center_x = 29.5
+center_y = 4.5
+center_z = 18.0
+
+size_x = 18
+size_y = 18
+size_z = 18
+
+exhaustiveness = 32
+num_modes = 20
+energy_range = 3

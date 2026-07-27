@@ -1,199 +1,197 @@
 # Protein-Ligand Docking Pipeline
 
-**Small-molecule (ligand) docking to proteins** using open-source tools.
+**Small-molecule (ligand) docking to proteins** — clean, modular, and reproducible.
 
-A clean, reproducible, modular pipeline centered on **AutoDock Vina 1.2+**, with structure preparation via **Open Babel** and **RDKit**, and analysis helpers in Python.
-
-Ideal for structure-based virtual screening, pose prediction, and binding mode analysis in academic labs.
-
----
-
-## Pipeline Overview
-
-```
-1. Receptor Preparation
-   PDB → clean (remove waters/hetatms) → add H → PDBQT
-
-2. Ligand Preparation
-   SMILES / SDF / MOL2 → 3D embed + minimize → protonate (pH 7.4) → PDBQT
-
-3. Binding Site Definition
-   - From co-crystal ligand (recommended)
-   - Manual box coordinates
-   - Optional: pocket prediction tools
-
-4. Docking (AutoDock Vina)
-   Exhaustiveness, energy range, number of modes configurable
-
-5. Post-processing
-   Rank poses by score → extract top poses → optional interaction fingerprints
-```
+Core engine: **AutoDock Vina 1.2+**  
+Preparation: OpenBabel + RDKit + Biopython  
+Extras: P2Rank pocket detection • Batch virtual screening • DiffDock (deep learning) option • Redocking validation example
 
 ---
 
-## Quick Start
+## Features
 
-### 1. Install dependencies (Conda recommended)
+- Receptor & ligand preparation (PDB → PDBQT, SMILES/SDF → PDBQT)
+- Automatic binding site prediction with **P2Rank**
+- Single-ligand and **batch virtual screening** modes
+- Pose ranking + CSV summary
+- Optional **DiffDock** path for state-of-the-art deep learning docking
+- Ready-to-run **redocking example** (trypsin + benzamidine)
+
+---
+
+## Installation
 
 ```bash
-# Create environment
+git clone https://github.com/gigi777mo/protein-docking-pipeline.git
+cd protein-docking-pipeline
+
+# Recommended
 conda env create -f environment.yml
 conda activate docking
 
-# Or minimal pip install (after system OpenBabel + Vina)
-pip install -r requirements.txt
+# You still need AutoDock Vina in PATH
+# Download from: https://github.com/ccsb-scripps/AutoDock-Vina/releases
+# or: conda install -c conda-forge vina
 ```
 
-**Key tools required:**
-- AutoDock Vina ≥ 1.2.0 (`vina` command must be in PATH)
-- Open Babel (`obabel`)
-- Python 3.9+ with RDKit, Biopython, pandas, numpy
-
-### 2. Prepare your files
-
-Place your files like this:
-
-```
-data/
-├── receptors/
-│   └── my_protein.pdb
-├── ligands/
-│   ├── ligand1.smi          # or .sdf / .mol2
-│   └── ligand2.sdf
-└── configs/
-    └── docking_config.txt   # Vina config (box, exhaustiveness...)
-```
-
-### 3. Run the pipeline
+**Optional but recommended extras:**
 
 ```bash
-# Single ligand example
-python scripts/run_docking.py \
-  --receptor data/receptors/my_protein.pdb \
-  --ligand data/ligands/ligand1.smi \
-  --config data/configs/docking_config.txt \
-  --out results/run1
-```
+# P2Rank (pocket prediction)
+# Download from https://github.com/rdk/p2rank/releases and add `prank` to PATH
 
-Or use the full modular steps (recommended for understanding):
-
-```bash
-# Step 1: Prepare receptor
-python scripts/prepare_receptor.py -i data/receptors/my_protein.pdb -o prepared/receptor.pdbqt
-
-# Step 2: Prepare ligand
-python scripts/prepare_ligand.py -i data/ligands/ligand1.smi -o prepared/ligand.pdbqt
-
-# Step 3: Dock
-vina --config data/configs/docking_config.txt --receptor prepared/receptor.pdbqt --ligand prepared/ligand.pdbqt --out results/docked.pdbqt --log results/vina.log
-
-# Step 4: Analyze
-python scripts/analyze_results.py --docked results/docked.pdbqt --out results/summary.csv
+# DiffDock (deep learning docking)
+# Follow instructions at https://github.com/gcorso/DiffDock
 ```
 
 ---
 
-## Directory Structure
+## Quick Start (Single Ligand)
+
+```bash
+python scripts/run_docking.py \
+  --receptor data/receptors/your_protein.pdb \
+  --ligand data/ligands/your_ligand.smi \
+  --config data/configs/example_config.txt \
+  --out results/my_run
+```
+
+---
+
+## 1. Automatic Pocket Detection (P2Rank)
+
+If you do not know the binding site:
+
+```bash
+# Predict pockets
+python scripts/predict_pocket.py \
+  --receptor data/receptors/your_protein.pdb \
+  --out results/pockets \
+  --top 1          # use the top-scoring pocket
+
+# This generates a ready-to-use Vina config file with center + size
+```
+
+The script runs `prank predict`, reads the top pocket center from `*_predictions.csv`, and writes a Vina-compatible config (default box size 22 Å, adjustable).
+
+---
+
+## 2. Batch Virtual Screening
+
+Dock many ligands against one receptor:
+
+```bash
+python scripts/batch_screen.py \
+  --receptor data/receptors/your_protein.pdb \
+  --ligands data/ligands/library.sdf   # or .smi (one SMILES per line)
+  --config data/configs/example_config.txt \
+  --out results/vs_run \
+  --exhaustiveness 16
+```
+
+Outputs:
+- Individual docked poses
+- `summary.csv` ranked by best affinity
+- Easy to filter top hits for further analysis
+
+---
+
+## 3. DiffDock Option (Deep Learning)
+
+For higher accuracy on many targets (especially when the binding site is unknown or the protein is flexible):
+
+1. Install DiffDock following the official repo: https://github.com/gcorso/DiffDock
+2. Use the provided helper:
+
+```bash
+python scripts/run_diffdock.py \
+  --protein data/receptors/your_protein.pdb \
+  --ligand "CCO..." \          # SMILES or path to SDF
+  --out results/diffdock_run
+```
+
+The script is a thin wrapper that calls DiffDock inference and reorganizes the output for easy comparison with Vina results. DiffDock often outperforms classical docking on pose prediction benchmarks.
+
+---
+
+## 4. Redocking Validation Example (Trypsin + Benzamidine)
+
+Classic, well-behaved system for testing your installation.
+
+**Ligand SMILES (benzamidine):**
+```
+NC(=N)C1=CC=CC=C1
+```
+
+**Recommended steps:**
+
+```bash
+# 1. Download the structure (3PTB is the classic entry)
+# From RCSB: https://www.rcsb.org/structure/3PTB
+# Or use:
+mkdir -p data/receptors
+wget -O data/receptors/3PTB.pdb https://files.rcsb.org/download/3PTB.pdb
+
+# 2. Extract / prepare the known ligand (or use the SMILES above)
+# 3. Calculate box from the co-crystal ligand or use P2Rank
+python scripts/utils.py --get-box --ligand path/to/benzamidine_from_pdb.pdb --padding 6
+
+# 4. Run docking and check if top pose has RMSD < 2.0 Å to crystal
+```
+
+A successful redocking (RMSD of top pose < 2.0 Å) confirms your environment and parameters are working correctly.
+
+---
+
+## Directory Layout
 
 ```
 protein-docking-pipeline/
-├── README.md
-├── environment.yml
-├── requirements.txt
 ├── scripts/
 │   ├── prepare_receptor.py
 │   ├── prepare_ligand.py
-│   ├── run_docking.py          # end-to-end wrapper
+│   ├── run_docking.py
+│   ├── batch_screen.py          # NEW
+│   ├── predict_pocket.py         # NEW (P2Rank)
+│   ├── run_diffdock.py           # NEW (wrapper)
 │   ├── analyze_results.py
 │   └── utils.py
 ├── data/
-│   ├── receptors/             # put your .pdb files here
-│   ├── ligands/               # SMILES / SDF / MOL2
+│   ├── receptors/
+│   ├── ligands/
+│   │   ├── example_ligand.smi
+│   │   └── benzamidine.smi        # NEW
 │   └── configs/
-│       └── example_config.txt
-├── prepared/                 # intermediate PDBQT files
-└── results/                   # docking outputs + summaries
+├── results/
+└── ...
 ```
 
 ---
 
-## Defining the Search Box (Critical Step)
+## Tips for Best Results
 
-AutoDock Vina needs a box that covers the binding site.
-
-**Best practice:** Use a co-crystal ligand if available.
-
-1. Open the complex in PyMOL / ChimeraX / Discovery Studio.
-2. Select the ligand → calculate center of mass and approximate size.
-3. Or use the provided helper:
-
-```bash
-python scripts/utils.py --get-box --ligand data/ligands/crystal_ligand.pdb --padding 5.0
-```
-
-Example `docking_config.txt`:
-
-```
-center_x = 12.345
-center_y = -5.678
-center_z = 23.901
-size_x = 22
-size_y = 22
-size_z = 22
-exhaustiveness = 32
-num_modes = 20
-energy_range = 4
-```
-
-Higher `exhaustiveness` (16–64) improves sampling for larger or flexible ligands (at cost of time).
-
----
-
-## Key Scripts Explained
-
-| Script | Purpose |
-|--------|---------|
-| `prepare_receptor.py` | Removes waters, heteroatoms (optional keep cofactors), adds polar hydrogens, converts to rigid PDBQT |
-| `prepare_ligand.py` | Handles SMILES/SDF/MOL2 → generates 3D conformer, minimizes, protonates at pH 7.4, outputs PDBQT with torsions |
-| `run_docking.py` | End-to-end: prepare + dock + basic ranking |
-| `analyze_results.py` | Parses Vina output, ranks poses by affinity, writes CSV + top poses |
-
----
-
-## Tips for Good Results
-
-- Always start from a high-quality receptor structure (ideally <2.5 Å resolution, no large missing loops near the site).
-- Protonation state of the ligand matters a lot — the pipeline defaults to pH 7.4.
-- For virtual screening of large libraries, use lower exhaustiveness first (8), then re-dock top hits with higher exhaustiveness.
-- Validate by redocking a known co-crystal ligand (RMSD < 2.0 Å is usually considered successful).
-- Consider flexible side chains only for residues known to move significantly (advanced).
-
----
-
-## Modern Alternatives (2024–2026)
-
-If you need state-of-the-art deep learning docking:
-
-- **DiffDock / DiffDock-L** (https://github.com/gcorso/DiffDock) — diffusion model, excellent for pose prediction
-- **GNINA** — Vina + CNN scoring
-- **EasyDock** — modern automated pipeline supporting multiple engines
-
-This repository focuses on the classic, fully open, transparent, and easily auditable AutoDock Vina workflow that is still the workhorse in most labs.
+- Always redock a known ligand first to validate the setup.
+- Use higher `exhaustiveness` (32–64) for final pose prediction; lower (8–16) for large virtual screens.
+- Protonation state of the ligand is critical — the pipeline defaults to pH 7.4.
+- For flexible receptors, consider induced-fit docking or DiffDock.
+- After docking, inspect top poses in PyMOL / ChimeraX and calculate interaction fingerprints if needed (PLIP is excellent).
 
 ---
 
 ## Citation
 
-If you use this pipeline, please cite AutoDock Vina:
+**AutoDock Vina**
+> Eberhardt J et al. J Chem Inf Model. 2021.  
+> Trott O, Olson AJ. J Comput Chem. 2010.
 
-> Eberhardt J, Santos-Martins D, Tillack AF, Forli S. AutoDock Vina 1.2.0: New Docking Methods, Expanded Force Field, and Python Bindings. J Chem Inf Model. 2021.
+**P2Rank**
+> Krivák R, Hoksza D. J Cheminform. 2018.
 
-> Trott O, Olson AJ. AutoDock Vina: improving the speed and accuracy of docking with a new scoring function, efficient optimization, and multithreading. J Comput Chem. 2010.
+**DiffDock**
+> Corso G et al. ICLR 2023 / DiffDock-L updates.
 
 ---
 
 ## License
 
-MIT License — free for academic and commercial use.
-
-Feel free to open issues or PRs for improvements (e.g., P2Rank integration, batch screening, interaction analysis with PLIP).
+MIT
