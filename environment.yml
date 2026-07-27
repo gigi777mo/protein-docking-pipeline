@@ -5,11 +5,14 @@ channels:
   - defaults
 dependencies:
   - python=3.11
+  - pip
+  - numpy
+  - pandas
+  - biopython
   - openbabel
   - rdkit
-  - biopython
-  - pandas
-  - numpy
-  - pip
+  # AutoDock Vina binary (command-line `vina`)
+  - autodock-vina
   - pip:
-    - vina          # official Python bindings (optional but useful)
+      # Official Python bindings (optional; scripts also call the vina binary)
+      - vina
