@@ -6,6 +6,8 @@ Core engine: **AutoDock Vina 1.2+**
 Preparation: OpenBabel + RDKit + Biopython  
 Extras: P2Rank pocket detection • Batch virtual screening • DiffDock option • RMSD validation • Example library • GitHub Actions CI
 
+Full citations: **[docs/CITATIONS.md](docs/CITATIONS.md)**
+
 ---
 
 ## Features
@@ -105,8 +107,7 @@ Vina uses an **empirical scoring function** (kcal/mol) of the form:
 **More negative = better predicted affinity.**  
 Scores are best used for **relative ranking**, not as absolute free energies.
 
-→ Full details, interpretation guidelines, and comparison with other methods:  
-**[docs/scoring_function.md](docs/scoring_function.md)**
+→ Full details: **[docs/scoring_function.md](docs/scoring_function.md)**
 
 ---
 
@@ -121,14 +122,9 @@ Scores are best used for **relative ranking**, not as absolute free energies.
 Classic system: **trypsin + benzamidine**
 
 ```bash
-# Download structure
 mkdir -p data/receptors
 wget -O data/receptors/3PTB.pdb https://files.rcsb.org/download/3PTB.pdb
-
-# Use the provided SMILES
 # data/ligands/benzamidine.smi
-
-# After docking, check RMSD of the poses against the crystal ligand
 python scripts/calculate_rmsd.py --ref crystal_benzamidine.pdb --docked results/docked.pdbqt
 ```
 
@@ -138,53 +134,38 @@ python scripts/calculate_rmsd.py --ref crystal_benzamidine.pdb --docked results/
 
 ```
 scripts/
-  prepare_receptor.py
-  prepare_ligand.py
-  run_docking.py
-  batch_screen.py
-  predict_pocket.py
-  run_diffdock.py
-  analyze_results.py
-  calculate_rmsd.py
-  utils.py
+  prepare_receptor.py, prepare_ligand.py, run_docking.py,
+  batch_screen.py, predict_pocket.py, run_diffdock.py,
+  analyze_results.py, calculate_rmsd.py, utils.py
 
 docs/
-  scoring_function.md    # Detailed scoring function explanation
-
-data/ligands/
-  example_library.smi
-  benzamidine.smi
-  example_ligand.smi
+  scoring_function.md
+  CITATIONS.md
 ```
 
 ---
 
 ## Continuous Integration
 
-A basic GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
-- Syntax checking of all Python scripts
-- Import tests for core modules
-- Verification that the example library is readable
-
-Full end-to-end docking tests require Vina + OpenBabel and are left for local runs.
+GitHub Actions (`.github/workflows/ci.yml`) runs syntax checks and import tests on push/PR.
 
 ---
 
 ## Tips
 
-- Always validate with a known redocking case first.
+- Validate with a known redocking case first.
 - Use higher exhaustiveness (32–64) for final poses; lower (8–16) for large screens.
-- Protonation at pH 7.4 is the default — adjust if your ligand has unusual pKa.
-- After docking, inspect poses visually and consider interaction analysis (PLIP is excellent).
 - Treat Vina scores as relative ranks, not absolute ΔG values.
 
 ---
 
 ## Citation
 
-**AutoDock Vina** — Eberhardt et al. (2021), Trott & Olson (2010)  
-**P2Rank** — Krivák & Hoksza (2018)  
-**DiffDock** — Corso et al. (2023)
+See **[docs/CITATIONS.md](docs/CITATIONS.md)** for full references. Key papers:
+
+- **AutoDock Vina** — Trott & Olson, J Comput Chem 2010; Eberhardt et al., JCIM 2021  
+- **P2Rank** — Krivák & Hoksza, J Cheminform 2018  
+- **DiffDock** — Corso et al., ICLR 2023  
 
 ---
 
