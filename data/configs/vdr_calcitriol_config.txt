@@ -1,0 +1,18 @@
+# AutoDock Vina config for VDR LBD (PDB 1DB1) + calcitriol redocking
+# Grid centered on the crystallographic ligand-binding pocket (approx.)
+# After downloading 1DB1, refine center with the crystal ligand coordinates if needed.
+
+receptor = data/receptors/1DB1_receptor.pdbqt
+ligand = data/ligands/calcitriol.pdbqt
+
+center_x = 15.0
+center_y = 20.0
+center_z = 35.0
+
+size_x = 24
+size_y = 24
+size_z = 24
+
+exhaustiveness = 16
+num_modes = 10
+energy_range = 3
